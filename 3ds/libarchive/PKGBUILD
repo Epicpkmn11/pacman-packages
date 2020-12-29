@@ -1,7 +1,7 @@
 # Maintainer:  Dave Murphy <davem@devkitpro.org>
 
 pkgname=3ds-libarchive
-pkgver=3.1.2
+pkgver=3.5.1
 pkgrel=3
 pkgdesc='library that can create and read several streaming archive format (for Nintendo 3DS homebrew development)'
 arch=('any')
@@ -10,11 +10,11 @@ license=('Simplified BSD')
 options=(!strip libtool staticlibs)
 source=(
  "http://www.libarchive.org/downloads/libarchive-${pkgver}.tar.gz"
- "libarchive-3.1.2.patch"
+ "libarchive-3.5.1.patch"
 )
 sha256sums=(
- 'eb87eacd8fe49e8d90c8fdc189813023ccc319c5e752b01fb6ad0cc7b2c53d5e'
- '3d397bbd8d374a516cdedcae4b8e7b33cb07f3324a3baca629bc3b6fe097a0f5'
+ '9015d109ec00bb9ae1a384b172bf2fc1dff41e2c66e5a9eeddf933af9db37f5a'
+ 'c0c59835c6d5b95843b3662e605bd71066779e7d128747694dcc616f902c4128'
 )
 makedepends=('3ds-pkg-config' 'devkitpro-pkgbuild-helpers')
 depends=('3ds-bzip2' '3ds-zlib' '3ds-liblzma')
@@ -26,12 +26,12 @@ build() {
   source /opt/devkitpro/devkitarm.sh
   source /opt/devkitpro/3dsvars.sh
 
-  patch -Np1 -i "$srcdir"/libarchive-${pkgver}.patch
-
   ./configure --disable-shared --enable-static --prefix=${PORTLIBS_PREFIX} --host=arm-none-eabi \
     --without-nettle --without-openssl --without-xml2 \
     --without-expat --without-iconv --disable-bsdtar \
     --disable-bsdcpio --disable-acl
+
+  patch -Np1 -i "$srcdir"/libarchive-${pkgver}.patch
 
   make
 }
