@@ -1,0 +1,52 @@
+# Maintainer:  Dave Murphy <davem@devkitpro.org>
+
+pkgname=nds-libarchive
+pkgver=3.5.1
+pkgrel=3
+pkgdesc='library that can create and read several streaming archive format (for Nintendo DS homebrew development)'
+arch=('any')
+url="https://www.libarchive.org"
+license=('Simplified BSD')
+options=(!strip libtool staticlibs)
+source=(
+ "http://www.libarchive.org/downloads/libarchive-${pkgver}.tar.gz"
+ "libarchive-3.5.1.patch"
+)
+sha256sums=(
+ '9015d109ec00bb9ae1a384b172bf2fc1dff41e2c66e5a9eeddf933af9db37f5a'
+ 'c0c59835c6d5b95843b3662e605bd71066779e7d128747694dcc616f902c4128'
+)
+makedepends=('nds-pkg-config' 'devkitpro-pkgbuild-helpers')
+depends=('nds-bzip2' 'nds-zlib' 'nds-liblzma')
+groups=('nds-portlibs')
+
+build() {
+  cd libarchive-$pkgver
+
+  source /opt/devkitpro/devkitarm.sh
+  source /opt/devkitpro/ndsvars.sh
+
+  ./configure --disable-shared --enable-static --prefix=${PORTLIBS_PREFIX} --host=arm-none-eabi \
+    --without-nettle --without-openssl --without-xml2 \
+    --without-expat --without-iconv --disable-bsdtar \
+    --disable-bsdcpio --disable-acl
+
+  patch -Np1 -i "$srcdir"/libarchive-${pkgver}.patch
+
+  make
+}
+
+package() {
+  cd libarchive-$pkgver
+
+  source /opt/devkitpro/devkitarm.sh
+  source /opt/devkitpro/ndsvars.sh
+
+  make DESTDIR="$pkgdir" install
+  # license
+  install -Dm644 "$srcdir"/libarchive-${pkgver}/COPYING "$pkgdir"${PORTLIBS_PREFIX}/licenses/$pkgname/COPYING
+  # remove useless stuff
+  rm -r "$pkgdir"${PORTLIBS_PREFIX}/share
+  rm -r "$pkgdir"${PORTLIBS_PREFIX}/bin
+}
+

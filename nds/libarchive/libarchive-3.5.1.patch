@@ -1,0 +1,450 @@
+diff -Naur libarchive-3.5.1.orig/config.h libarchive-3.5.1/config.h
+--- libarchive-3.5.1.orig/config.h	2020-12-28 17:49:45.000000000 -0600
++++ libarchive-3.5.1/config.h	2020-12-28 17:40:09.000000000 -0600
+@@ -293,7 +293,7 @@
+ /* #undef HAVE_ACL_TAG_T */
+ 
+ /* Define to 1 if you have the `arc4random_buf' function. */
+-/* #undef HAVE_ARC4RANDOM_BUF */
++#define HAVE_ARC4RANDOM_BUF 1
+ 
+ /* Define to 1 if you have the <attr/xattr.h> header file. */
+ /* #undef HAVE_ATTR_XATTR_H */
+@@ -483,7 +483,7 @@
+ /* #undef HAVE_FACL */
+ 
+ /* Define to 1 if you have the `fchdir' function. */
+-/* #undef HAVE_FCHDIR */
++#define HAVE_FCHDIR 1
+ 
+ /* Define to 1 if you have the `fchflags' function. */
+ /* #undef HAVE_FCHFLAGS */
+@@ -865,7 +865,7 @@
+ /* #undef HAVE_POSIX_SPAWNP */
+ 
+ /* Define to 1 if you have the <pthread.h> header file. */
+-#define HAVE_PTHREAD_H 1
++/* #undef HAVE_PTHREAD_H */
+ 
+ /* Define to 1 if you have the <pwd.h> header file. */
+ #define HAVE_PWD_H 1
+diff -Naur libarchive-3.5.1.orig/libarchive/archive_write_set_format_iso9660.c libarchive-3.5.1/libarchive/archive_write_set_format_iso9660.c
+--- libarchive-3.5.1.orig/libarchive/archive_write_set_format_iso9660.c	2020-12-25 19:29:38.000000000 -0600
++++ libarchive-3.5.1/libarchive/archive_write_set_format_iso9660.c	2020-12-28 17:42:42.000000000 -0600
+@@ -2509,7 +2509,7 @@
+ #elif defined(__CYGWIN__) || defined(__MINGW32__) || defined(__BORLANDC__)
+ 	offset = _timezone;
+ #else
+-	offset = timezone;
++	offset = _timezone;
+ #endif
+ 	offset *= -1;
+ 	if (tm->tm_isdst)
+diff -Naur libarchive-3.5.1.orig/libarchive_fe/passphrase.c libarchive-3.5.1/libarchive_fe/passphrase.c
+--- libarchive-3.5.1.orig/libarchive_fe/passphrase.c	2020-12-28 18:03:50.000000000 -0600
++++ libarchive-3.5.1/libarchive_fe/passphrase.c	2020-12-28 18:04:30.000000000 -0600
+@@ -131,7 +131,7 @@
+ #endif
+ #include <signal.h>
+ #include <string.h>
+-#include <termios.h>
++// #include <termios.h>
+ #include <unistd.h>
+ 
+ #ifndef _PATH_TTY
+@@ -167,148 +167,149 @@
+ static char *
+ readpassphrase(const char *prompt, char *buf, size_t bufsiz, int flags)
+ {
+-	ssize_t nr;
+-	int input, output, save_errno, i, need_restart;
+-	char ch, *p, *end;
+-	struct termios term, oterm;
+-	struct sigaction sa, savealrm, saveint, savehup, savequit, saveterm;
+-	struct sigaction savetstp, savettin, savettou, savepipe;
+-
+-	/* I suppose we could alloc on demand in this case (XXX). */
+-	if (bufsiz == 0) {
+-		errno = EINVAL;
+-		return(NULL);
+-	}
+-
+-restart:
+-	for (i = 0; i <= MAX_SIGNO; i++)
+-		signo[i] = 0;
+-	nr = -1;
+-	save_errno = 0;
+-	need_restart = 0;
+-	/*
+-	 * Read and write to /dev/tty if available.  If not, read from
+-	 * stdin and write to stderr unless a tty is required.
+-	 */
+-	if ((flags & RPP_STDIN) ||
+-	    (input = output = open(_PATH_TTY, O_RDWR)) == -1) {
+-		if (flags & RPP_REQUIRE_TTY) {
+-			errno = ENOTTY;
+-			return(NULL);
+-		}
+-		input = STDIN_FILENO;
+-		output = STDERR_FILENO;
+-	}
+-
+-	/*
+-	 * Turn off echo if possible.
+-	 * If we are using a tty but are not the foreground pgrp this will
+-	 * generate SIGTTOU, so do it *before* installing the signal handlers.
+-	 */
+-	if (input != STDIN_FILENO && tcgetattr(input, &oterm) == 0) {
+-		memcpy(&term, &oterm, sizeof(term));
+-		if (!(flags & RPP_ECHO_ON))
+-			term.c_lflag &= ~(ECHO | ECHONL);
+-#ifdef VSTATUS
+-		if (term.c_cc[VSTATUS] != _POSIX_VDISABLE)
+-			term.c_cc[VSTATUS] = _POSIX_VDISABLE;
+-#endif
+-		(void)tcsetattr(input, _T_FLUSH, &term);
+-	} else {
+-		memset(&term, 0, sizeof(term));
+-		term.c_lflag |= ECHO;
+-		memset(&oterm, 0, sizeof(oterm));
+-		oterm.c_lflag |= ECHO;
+-	}
+-
+-	/*
+-	 * Catch signals that would otherwise cause the user to end
+-	 * up with echo turned off in the shell.  Don't worry about
+-	 * things like SIGXCPU and SIGVTALRM for now.
+-	 */
+-	sigemptyset(&sa.sa_mask);
+-	sa.sa_flags = 0;		/* don't restart system calls */
+-	sa.sa_handler = handler;
+-	/* Keep this list in sync with MAX_SIGNO! */
+-	(void)sigaction(SIGALRM, &sa, &savealrm);
+-	(void)sigaction(SIGHUP, &sa, &savehup);
+-	(void)sigaction(SIGINT, &sa, &saveint);
+-	(void)sigaction(SIGPIPE, &sa, &savepipe);
+-	(void)sigaction(SIGQUIT, &sa, &savequit);
+-	(void)sigaction(SIGTERM, &sa, &saveterm);
+-	(void)sigaction(SIGTSTP, &sa, &savetstp);
+-	(void)sigaction(SIGTTIN, &sa, &savettin);
+-	(void)sigaction(SIGTTOU, &sa, &savettou);
+-
+-	if (!(flags & RPP_STDIN)) {
+-		int r = write(output, prompt, strlen(prompt));
+-		(void)r;
+-	}
+-	end = buf + bufsiz - 1;
+-	p = buf;
+-	while ((nr = read(input, &ch, 1)) == 1 && ch != '\n' && ch != '\r') {
+-		if (p < end) {
+-			if ((flags & RPP_SEVENBIT))
+-				ch &= 0x7f;
+-			if (isalpha((unsigned char)ch)) {
+-				if ((flags & RPP_FORCELOWER))
+-					ch = (char)tolower((unsigned char)ch);
+-				if ((flags & RPP_FORCEUPPER))
+-					ch = (char)toupper((unsigned char)ch);
+-			}
+-			*p++ = ch;
+-		}
+-	}
+-	*p = '\0';
+-	save_errno = errno;
+-	if (!(term.c_lflag & ECHO)) {
+-		int r = write(output, "\n", 1);
+-		(void)r;
+-	}
+-
+-	/* Restore old terminal settings and signals. */
+-	if (memcmp(&term, &oterm, sizeof(term)) != 0) {
+-		const int sigttou = signo[SIGTTOU];
+-
+-		/* Ignore SIGTTOU generated when we are not the fg pgrp. */
+-		while (tcsetattr(input, _T_FLUSH, &oterm) == -1 &&
+-		    errno == EINTR && !signo[SIGTTOU])
+-			continue;
+-		signo[SIGTTOU] = sigttou;
+-	}
+-	(void)sigaction(SIGALRM, &savealrm, NULL);
+-	(void)sigaction(SIGHUP, &savehup, NULL);
+-	(void)sigaction(SIGINT, &saveint, NULL);
+-	(void)sigaction(SIGQUIT, &savequit, NULL);
+-	(void)sigaction(SIGPIPE, &savepipe, NULL);
+-	(void)sigaction(SIGTERM, &saveterm, NULL);
+-	(void)sigaction(SIGTSTP, &savetstp, NULL);
+-	(void)sigaction(SIGTTIN, &savettin, NULL);
+-	(void)sigaction(SIGTTOU, &savettou, NULL);
+-	if (input != STDIN_FILENO)
+-		(void)close(input);
+-
+-	/*
+-	 * If we were interrupted by a signal, resend it to ourselves
+-	 * now that we have restored the signal handlers.
+-	 */
+-	for (i = 0; i <= MAX_SIGNO; i++) {
+-		if (signo[i]) {
+-			kill(getpid(), i);
+-			switch (i) {
+-			case SIGTSTP:
+-			case SIGTTIN:
+-			case SIGTTOU:
+-				need_restart = 1;
+-			}
+-		}
+-	}
+-	if (need_restart)
+-		goto restart;
+-
+-	if (save_errno)
+-		errno = save_errno;
+-	return(nr == -1 ? NULL : buf);
++	return "";
++// 	ssize_t nr;
++// 	int input, output, save_errno, i, need_restart;
++// 	char ch, *p, *end;
++// 	struct termios term, oterm;
++// 	struct sigaction sa, savealrm, saveint, savehup, savequit, saveterm;
++// 	struct sigaction savetstp, savettin, savettou, savepipe;
++
++// 	/* I suppose we could alloc on demand in this case (XXX). */
++// 	if (bufsiz == 0) {
++// 		errno = EINVAL;
++// 		return(NULL);
++// 	}
++
++// restart:
++// 	for (i = 0; i <= MAX_SIGNO; i++)
++// 		signo[i] = 0;
++// 	nr = -1;
++// 	save_errno = 0;
++// 	need_restart = 0;
++// 	/*
++// 	 * Read and write to /dev/tty if available.  If not, read from
++// 	 * stdin and write to stderr unless a tty is required.
++// 	 */
++// 	if ((flags & RPP_STDIN) ||
++// 	    (input = output = open(_PATH_TTY, O_RDWR)) == -1) {
++// 		if (flags & RPP_REQUIRE_TTY) {
++// 			errno = ENOTTY;
++// 			return(NULL);
++// 		}
++// 		input = STDIN_FILENO;
++// 		output = STDERR_FILENO;
++// 	}
++
++// 	/*
++// 	 * Turn off echo if possible.
++// 	 * If we are using a tty but are not the foreground pgrp this will
++// 	 * generate SIGTTOU, so do it *before* installing the signal handlers.
++// 	 */
++// 	if (input != STDIN_FILENO && tcgetattr(input, &oterm) == 0) {
++// 		memcpy(&term, &oterm, sizeof(term));
++// 		if (!(flags & RPP_ECHO_ON))
++// 			term.c_lflag &= ~(ECHO | ECHONL);
++// #ifdef VSTATUS
++// 		if (term.c_cc[VSTATUS] != _POSIX_VDISABLE)
++// 			term.c_cc[VSTATUS] = _POSIX_VDISABLE;
++// #endif
++// 		(void)tcsetattr(input, _T_FLUSH, &term);
++// 	} else {
++// 		memset(&term, 0, sizeof(term));
++// 		term.c_lflag |= ECHO;
++// 		memset(&oterm, 0, sizeof(oterm));
++// 		oterm.c_lflag |= ECHO;
++// 	}
++
++// 	/*
++// 	 * Catch signals that would otherwise cause the user to end
++// 	 * up with echo turned off in the shell.  Don't worry about
++// 	 * things like SIGXCPU and SIGVTALRM for now.
++// 	 */
++// 	sigemptyset(&sa.sa_mask);
++// 	sa.sa_flags = 0;		/* don't restart system calls */
++// 	sa.sa_handler = handler;
++// 	/* Keep this list in sync with MAX_SIGNO! */
++// 	(void)sigaction(SIGALRM, &sa, &savealrm);
++// 	(void)sigaction(SIGHUP, &sa, &savehup);
++// 	(void)sigaction(SIGINT, &sa, &saveint);
++// 	(void)sigaction(SIGPIPE, &sa, &savepipe);
++// 	(void)sigaction(SIGQUIT, &sa, &savequit);
++// 	(void)sigaction(SIGTERM, &sa, &saveterm);
++// 	(void)sigaction(SIGTSTP, &sa, &savetstp);
++// 	(void)sigaction(SIGTTIN, &sa, &savettin);
++// 	(void)sigaction(SIGTTOU, &sa, &savettou);
++
++// 	if (!(flags & RPP_STDIN)) {
++// 		int r = write(output, prompt, strlen(prompt));
++// 		(void)r;
++// 	}
++// 	end = buf + bufsiz - 1;
++// 	p = buf;
++// 	while ((nr = read(input, &ch, 1)) == 1 && ch != '\n' && ch != '\r') {
++// 		if (p < end) {
++// 			if ((flags & RPP_SEVENBIT))
++// 				ch &= 0x7f;
++// 			if (isalpha((unsigned char)ch)) {
++// 				if ((flags & RPP_FORCELOWER))
++// 					ch = (char)tolower((unsigned char)ch);
++// 				if ((flags & RPP_FORCEUPPER))
++// 					ch = (char)toupper((unsigned char)ch);
++// 			}
++// 			*p++ = ch;
++// 		}
++// 	}
++// 	*p = '\0';
++// 	save_errno = errno;
++// 	if (!(term.c_lflag & ECHO)) {
++// 		int r = write(output, "\n", 1);
++// 		(void)r;
++// 	}
++
++// 	/* Restore old terminal settings and signals. */
++// 	if (memcmp(&term, &oterm, sizeof(term)) != 0) {
++// 		const int sigttou = signo[SIGTTOU];
++
++// 		/* Ignore SIGTTOU generated when we are not the fg pgrp. */
++// 		while (tcsetattr(input, _T_FLUSH, &oterm) == -1 &&
++// 		    errno == EINTR && !signo[SIGTTOU])
++// 			continue;
++// 		signo[SIGTTOU] = sigttou;
++// 	}
++// 	(void)sigaction(SIGALRM, &savealrm, NULL);
++// 	(void)sigaction(SIGHUP, &savehup, NULL);
++// 	(void)sigaction(SIGINT, &saveint, NULL);
++// 	(void)sigaction(SIGQUIT, &savequit, NULL);
++// 	(void)sigaction(SIGPIPE, &savepipe, NULL);
++// 	(void)sigaction(SIGTERM, &saveterm, NULL);
++// 	(void)sigaction(SIGTSTP, &savetstp, NULL);
++// 	(void)sigaction(SIGTTIN, &savettin, NULL);
++// 	(void)sigaction(SIGTTOU, &savettou, NULL);
++// 	if (input != STDIN_FILENO)
++// 		(void)close(input);
++
++// 	/*
++// 	 * If we were interrupted by a signal, resend it to ourselves
++// 	 * now that we have restored the signal handlers.
++// 	 */
++// 	for (i = 0; i <= MAX_SIGNO; i++) {
++// 		if (signo[i]) {
++// 			kill(getpid(), i);
++// 			switch (i) {
++// 			case SIGTSTP:
++// 			case SIGTTIN:
++// 			case SIGTTOU:
++// 				need_restart = 1;
++// 			}
++// 		}
++// 	}
++// 	if (need_restart)
++// 		goto restart;
++
++// 	if (save_errno)
++// 		errno = save_errno;
++// 	return(nr == -1 ? NULL : buf);
+ }
+ #endif /* _WIN32 && !__CYGWIN__ */
+ #endif /* HAVE_READPASSPHRASE */
+diff -Naur libarchive-3.5.1.orig/libarchive/archive_read_support_filter_program.c libarchive-3.5.1/libarchive/archive_read_support_filter_program.c
+--- libarchive-3.5.1.orig/libarchive/archive_read_support_filter_program.c	2020-12-25 19:29:38.000000000 -0600
++++ libarchive-3.5.1/libarchive/archive_read_support_filter_program.c	2020-12-28 18:08:15.000000000 -0600
+@@ -250,10 +250,10 @@
+ 
+ 	if (state->child != 0) {
+ 		/* Reap the child. */
+-		do {
+-			state->waitpid_return
+-			    = waitpid(state->child, &state->exit_status, 0);
+-		} while (state->waitpid_return == -1 && errno == EINTR);
++		// do {
++		// 	state->waitpid_return
++		// 	    = waitpid(state->child, &state->exit_status, 0);
++		// } while (state->waitpid_return == -1 && errno == EINTR);
+ #if defined(_WIN32) && !defined(__CYGWIN__)
+ 		CloseHandle(state->child);
+ #endif
+@@ -426,8 +426,8 @@
+ 	state->out_buf = out_buf;
+ 	state->out_buf_len = out_buf_len;
+ 
+-	ret = __archive_create_child(cmd, &state->child_stdin,
+-	    &state->child_stdout, &state->child);
++	// ret = __archive_create_child(cmd, &state->child_stdin,
++	//     &state->child_stdout, &state->child);
+ 	if (ret != ARCHIVE_OK) {
+ 		free(state->out_buf);
+ 		archive_string_free(&state->description);
+ diff -Naur libarchive-3.5.1.orig/libarchive/archive_write_add_filter_program.c libarchive-3.5.1/libarchive/archive_write_add_filter_program.c
+--- libarchive-3.5.1.orig/libarchive/archive_write_add_filter_program.c	2020-12-25 19:29:38.000000000 -0600
++++ libarchive-3.5.1/libarchive/archive_write_add_filter_program.c	2020-12-28 18:08:03.000000000 -0600
+@@ -221,8 +221,8 @@
+ 		}
+ 	}
+ 
+-	ret = __archive_create_child(cmd, &data->child_stdin,
+-		    &data->child_stdout, &data->child);
++	// ret = __archive_create_child(cmd, &data->child_stdin,
++	// 	    &data->child_stdout, &data->child);
+ 	if (ret != ARCHIVE_OK) {
+ 		archive_set_error(f->archive, EINVAL,
+ 		    "Can't launch external program: %s", cmd);
+@@ -374,8 +374,8 @@
+ 		close(data->child_stdin);
+ 	if (data->child_stdout != -1)
+ 		close(data->child_stdout);
+-	while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
+-		continue;
++	// while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
++	// 	continue;
+ #if defined(_WIN32) && !defined(__CYGWIN__)
+ 	CloseHandle(data->child);
+ #endif
+diff -Naur libarchive-3.5.1.orig/libarchive/archive_write_add_filter_program.c libarchive-3.5.1/libarchive/archive_write_add_filter_program.c
+--- libarchive-3.5.1.orig/libarchive/archive_write_add_filter_program.c	2020-12-28 18:15:31.000000000 -0600
++++ libarchive-3.5.1/libarchive/archive_write_add_filter_program.c	2020-12-28 18:16:49.000000000 -0600
+@@ -261,8 +261,8 @@
+ 
+ 		if (data->child_stdout == -1) {
+ 			fcntl(data->child_stdin, F_SETFL, 0);
+-			__archive_check_child(data->child_stdin,
+-				data->child_stdout);
++			// __archive_check_child(data->child_stdin,
++			// 	data->child_stdout);
+ 			continue;
+ 		}
+ 
+@@ -279,8 +279,8 @@
+ 			continue;
+ 		}
+ 		if (ret == -1 && errno == EAGAIN) {
+-			__archive_check_child(data->child_stdin,
+-				data->child_stdout);
++			// __archive_check_child(data->child_stdin,
++			// 	data->child_stdout);
+ 			continue;
+ 		}
+ 		if (ret == -1)
+diff -Naur libarchive-3.5.1.orig/libarchive/archive_read_support_filter_program.c libarchive-3.5.1/libarchive/archive_read_support_filter_program.c
+--- libarchive-3.5.1.orig/libarchive/archive_read_support_filter_program.c	2020-12-28 18:15:31.000000000 -0600
++++ libarchive-3.5.1/libarchive/archive_read_support_filter_program.c	2020-12-28 18:16:58.000000000 -0600
+@@ -352,8 +352,8 @@
+ 
+ 		if (state->child_stdin == -1) {
+ 			/* Block until child has some I/O ready. */
+-			__archive_check_child(state->child_stdin,
+-			    state->child_stdout);
++			// __archive_check_child(state->child_stdin,
++			//     state->child_stdout);
+ 			continue;
+ 		}
+ 
+@@ -377,8 +377,8 @@
+ 			__archive_read_filter_consume(self->upstream, ret);
+ 		} else if (ret == -1 && errno == EAGAIN) {
+ 			/* Block until child has some I/O ready. */
+-			__archive_check_child(state->child_stdin,
+-			    state->child_stdout);
++			// __archive_check_child(state->child_stdin,
++			//     state->child_stdout);
+ 		} else {
+ 			/* Write failed. */
+ 			close(state->child_stdin);
