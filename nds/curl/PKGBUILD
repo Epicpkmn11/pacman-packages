@@ -1,0 +1,49 @@
+# Maintainer: WinterMute <davem@devkitpro.org>
+# Contributor: Elouan Martinet <exa@elou.world>
+
+pkgname=nds-curl
+pkgver=7.69.1
+pkgrel=1
+pkgdesc='Library for transferring data with URLs. (for Nintendo DS homebrew development)'
+arch=('any')
+url='https://curl.haxx.se'
+license=('MIT')
+options=(!strip libtool staticlibs)
+depends=('nds-zlib' 'nds-mbedtls' 'dsiwifi')
+makedepends=('nds-pkg-config' 'devkitpro-pkgbuild-helpers')
+
+source=("https://curl.haxx.se/download/curl-${pkgver}.tar.xz"
+        'nds-curl.patch'
+)
+
+sha256sums=('03c7d5e6697f7b7e40ada1b2256e565a555657398e6c1fcfa4cb251ccd819d4f'
+            '619c68f58146dbab564efd86ba1b5aeb49af354c00f1b9def66dea584a02ddb2')
+groups=('nds-portlibs')
+
+build() {
+  cd curl-$pkgver
+
+  source /opt/devkitpro/ndsvars.sh
+
+  patch -Np1 -i $srcdir/nds-curl.patch
+
+  ./configure CFLAGS="${CFLAGS}" CPPFLAGS="${CPPFLAGS}" LIBS="-ldsiwifi9 -lnds9" \
+    --prefix=${PORTLIBS_PREFIX} --host=arm-none-eabi \
+    --disable-shared --enable-static --disable-ipv6 --disable-unix-sockets \
+    --disable-manual --disable-ntlm-wb --disable-threaded-resolver \
+    --with-mbedtls=$PORTLIBS_PREFIX
+
+  make -C lib
+}
+
+package() {
+  cd curl-$pkgver
+
+  source /opt/devkitpro/ndsvars.sh
+
+  make DESTDIR="$pkgdir" -C lib install
+  make DESTDIR="$pkgdir" -C include install
+  make DESTDIR="$pkgdir" install-binSCRIPTS
+
+  install -Dm644 COPYING "$pkgdir"${PORTLIBS_PREFIX}/licenses/$pkgname/COPYING
+}

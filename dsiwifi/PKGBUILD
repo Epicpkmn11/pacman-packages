@@ -1,0 +1,29 @@
+
+# Maintainer: Dave Murphy <davem@devkitpro.org>
+
+pkgname=('dsiwifi')
+pkgver=680520b646dabd5501ee21fcd7e8fea6fe64c181
+pkgrel=1
+pkgdesc="Nintendo DSi wifi library."
+arch=('any')
+license=('MIT')
+url="https://github.com/shinyquagsire23"
+options=(!strip libtool staticlibs)
+source=(${url}/${pkgname}/archive/${pkgver}.tar.gz)
+sha256sums=('b730f2625018a8404a42286bf70b162e290a8f290feba0363ac84362cbf342d8')
+makedepends=('devkitARM')
+
+groups=('nds-dev')
+
+build() {
+  export DEVKITPRO=/opt/devkitpro
+  export DEVKITARM=/opt/devkitpro/devkitARM
+  make -C $srcdir/$pkgname-$pkgver
+
+}
+
+package() {
+
+  make -C $srcdir/$pkgname-$pkgver DESTDIR=$pkgdir install
+
+}
