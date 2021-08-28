@@ -28,6 +28,7 @@ build() {
   patch -Np1 -i $srcdir/nds-curl.patch
 
   ./configure CFLAGS="${CFLAGS}" CPPFLAGS="${CPPFLAGS}" LIBS="-ldsiwifi9 -lnds9" \
+    LDFLAGS="-specs=ds_arm9.specs ${LDFLAGS}" \
     --prefix=${PORTLIBS_PREFIX} --host=arm-none-eabi \
     --disable-shared --enable-static --disable-ipv6 --disable-unix-sockets \
     --disable-manual --disable-ntlm-wb --disable-threaded-resolver \
