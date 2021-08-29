@@ -16,7 +16,7 @@ source=( "https://tls.mbed.org/download/mbedtls-${pkgver}-apache.tgz"
 groups=('nds-portlibs')
 
 sha256sums=('66455e23a6190a30142cdc1113f7418158839331a9d8e6b0778631d077281770'
-            '27437acc53f16136677aa22ae2193b76bed49522821ee50b32e87f81c2f80f59')
+            'a12c3978f1e80193a944c39d37f3991901e8b24d7d2c9ff6a779ce711b173b85')
 
 build() {
   cd mbedtls-$pkgver

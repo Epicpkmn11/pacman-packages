@@ -1,18 +1,17 @@
 diff -Nbaur mbedtls-2.16.6/library/entropy.c mbedtls-2.16.6-new/library/entropy.c
---- mbedtls-2.16.6/library/entropy.c	2020-04-09 22:12:23.000000000 +0900
-+++ mbedtls-2.16.6-new/library/entropy.c	2020-04-16 00:21:50.625234859 +0900
-@@ -119,6 +119,20 @@
+--- mbedtls-2.16.6/library/entropy.c	2020-04-09 08:12:23.000000000 -0500
++++ mbedtls-2.16.6-new/library/entropy.c	2021-08-28 20:22:04.000000000 -0500
+@@ -119,6 +119,19 @@
  #endif /* MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES */
  }
  
 +#define LIBNDS
 +#ifdef LIBNDS
-+    #include <nds.h>
 +    int mbedtls_hardware_poll( void *data,
 +                               unsigned char *output, size_t len, size_t *olen )
 +    {
-+        (void)(data);
-+        sslcGenerateRandomData(output, len);
++        for(int i = 0; i < len; i++)
++            output[i] = rand();
 +        if(olen)
 +            *olen = len;
 +        return 0;
